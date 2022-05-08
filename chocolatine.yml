@@ -1,0 +1,58 @@
+name: chocolatine
+
+on:
+  push:
+    branches:
+      - '**'
+      - '!ga-ignore-*'
+
+env:
+  MIRROR_URL: "git@github.com:EpitechPromo2026/B-DOP-200-BDX-2-1-chocolatine-leandre.godet.git"
+  EXECUTABLES: "./generator/generator ./solver/solver"
+
+jobs:
+  check_repository_cleanliness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ github.token }}
+      - run: echo "::error::" >> test 
+      - run: | 
+          my_array=$(find . -type f -name "*#" -o -name "*~" -o -name "pain_au_chocolat" -o -name "#*" -o -name "*.a" -o -name "*.o" -o -name "*.so" -o -name "*.gcno" -o -name "*.gcna" -o -name "*.gcovr" -o -name "*/tmp/*"); for i in $my_array; do echo "::error file=$i,title=Unwanted_file::$i"; echo "$i" >> unwanted; done; if [ -s unwanted ] ; then exit 1; fi
+  check_program_compilation:
+    runs-on: ubuntu-latest
+    needs: check_repository_cleanliness
+    container: epitechcontent/epitest-docker
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ github.token }}
+      - run: timeout 2m make
+      - run: make clean
+      - run: for i in $EXECUTABLES; do if [ ! -x $i ]; then exit 1; fi; done
+  run_tests:
+    needs: check_program_compilation
+    runs-on: ubuntu-latest
+    container: epitechcontent/epitest-docker
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ github.token }}
+      - run: timeout 2m make tests_run
+  push_to_mirror:
+    needs: run_tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: pixta-dev/repository-mirroring-action@v1
+        with:
+          target_repo_url:
+            ${{ env.MIRROR_URL }}
+          ssh_private_key:
+            ${{ secrets.GIT_SSH_PRIVATE_KEY }}
